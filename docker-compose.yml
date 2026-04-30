@@ -1,0 +1,12 @@
+services:
+  nexus-lore-agency:
+    build:
+      context: ./ai_agencies/nexus_lore_agency
+      dockerfile: dockerfile
+    container_name: nexus_lore_agency
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ai_agencies/nexus_lore_agency:/workspace  # 仅挂载当前外包公司目录
+    command: ["sleep", "infinity"]

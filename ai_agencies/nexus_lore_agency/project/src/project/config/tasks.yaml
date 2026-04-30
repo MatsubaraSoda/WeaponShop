@@ -1,0 +1,19 @@
+research_world_concepts_task:
+  description: >
+    搜集并构思 {target_count} 个不同风格的经典异世界设定（例如：废土、赛博、高魔等）。
+    提取这些作品的宏观物理法则、社会冲突和战争形态。
+    绝对不要提及原作品的名字和具体角色名，只提取抽象的“概念外壳”。
+  expected_output: >
+    一份包含 {target_count} 种纯粹宏观世界观概念的粗略笔记。
+  agent: ip_scavenger
+
+adapt_to_arsenal_lore_task:
+  description: >
+    根据提取的情报笔记，将这几个概念重写为武器商人视角。
+    每一个世界必须重点描述：主要冲突是什么？能量源是什么？主流武器的形态和特征是什么？
+  expected_output: >
+    以单一的 `# 跨次元武器黑市：宏观世界设定集` 开头。
+    后续的每一个异世界设定，必须以 `## [异世界名称]` 作为二级标题。
+    必须是完美的 Markdown 格式。
+  agent: arsenal_loremaster
+  output_file: report.md
