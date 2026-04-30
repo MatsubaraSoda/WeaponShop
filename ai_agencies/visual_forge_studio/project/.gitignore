@@ -1,0 +1,6 @@
+.env
+__pycache__/
+.DS_Store
+
+# 本地出图产物（output 目录下任意深度的 PNG）
+output/**/*.png
