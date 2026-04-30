@@ -10,3 +10,27 @@ services:
     volumes:
       - ./ai_agencies/nexus_lore_agency:/workspace  # 仅挂载当前外包公司目录
     command: ["sleep", "infinity"]
+
+  conceptual-armory-studio:
+    build:
+      context: ./ai_agencies/conceptual_armory_studio
+      dockerfile: dockerfile
+    container_name: conceptual_armory_studio
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ai_agencies/conceptual_armory_studio:/workspace
+    command: ["sleep", "infinity"]
+
+  visual-forge-studio:
+    build:
+      context: ./ai_agencies/visual_forge_studio
+      dockerfile: dockerfile
+    container_name: visual_forge_studio
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ai_agencies/visual_forge_studio:/workspace
+    command: ["sleep", "infinity"]

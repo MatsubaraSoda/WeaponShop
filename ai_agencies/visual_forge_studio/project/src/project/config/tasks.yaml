@@ -1,0 +1,7 @@
+test_image_generation:
+  description: >
+    请使用你的图像生成能力，生成一张图片：一只戴着赛博朋克风格发光墨镜的柴犬，背景是霓虹灯闪烁的未来城市街道。
+    本次执行为测试性质，请确保只生成这一张图片，不要执行任何其他操作。
+  expected_output: >
+    单张图片的生成结果（通常为图片的 URL、Base64 字符串或本地保存路径，具体取决于底层框架的返回格式）。
+  agent: image_generator
