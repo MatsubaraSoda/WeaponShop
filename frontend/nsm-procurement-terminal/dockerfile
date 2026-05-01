@@ -1,4 +1,4 @@
-# WeaponShop 前端（Vite + React + shadcn）：镜像仅提供 Node 运行时与常用工具；项目在挂载目录内初始化。
+# NSM Procurement Terminal 前端（Vite + React + shadcn）：镜像仅提供 Node 运行时与常用工具；项目在挂载目录内初始化。
 FROM node:24.9.0-slim
 
 ENV NODE_ENV=development
