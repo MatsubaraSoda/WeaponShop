@@ -1,0 +1,29 @@
+# WeaponShop 前端（Vite + React + shadcn）：镜像仅提供 Node 运行时与常用工具；项目在挂载目录内初始化。
+FROM node:24.9.0-slim
+
+ENV NODE_ENV=development
+
+WORKDIR /workspace
+
+# 须先用默认 Debian 源装好 ca-certificates，再切清华 HTTPS；否则 apt 访问 https 镜像会因无信任根证书失败（日志里的 Certificate verification failed）。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g; s|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list; \
+    fi \
+    && if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org/debian|https://mirrors.tuna.tsinghua.edu.cn/debian|g; s|http://security.debian.org/debian-security|https://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+# npm 默认使用 npmmirror（可在容器内改回官方 registry）
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+
+EXPOSE 5173
+
+# 开发：进入容器后执行 npm/pnpm，Vite 默认端口；dev server 需监听 0.0.0.0:5173
+CMD ["sleep", "infinity"]
