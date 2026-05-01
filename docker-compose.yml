@@ -58,3 +58,17 @@ services:
     volumes:
       - ./ai_agencies/data_harmonization_system:/workspace
     command: ["sleep", "infinity"]
+
+  nsm-procurement-terminal:
+    build:
+      context: ./frontend/nsm-procurement-terminal
+      dockerfile: dockerfile
+    container_name: nsm_procurement_terminal
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/nsm-procurement-terminal:/workspace
+    command: ["sleep", "infinity"]
