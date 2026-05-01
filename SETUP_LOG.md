@@ -8,6 +8,12 @@ docker compose build --no-cache
 # 常规启动并按需构建 适合日常开发
 docker compose up -d --build
 
+# 仅启动某一个服务（服务名 = compose 文件里 services: 下的键名，带连字符）
+docker compose up -d nexus-lore-agency
+# 其它可选：conceptual-armory-studio、visual-forge-studio、galactic-sales-agency
+# 前台看日志可去掉 -d：docker compose up visual-forge-studio
+# 首次或 Dockerfile 变更后只构建该服务：docker compose build galactic-sales-agency
+
 # 步骤 2 进入容器
 # 占位示例 不要原样执行
 docker exec -it <container_name> bash

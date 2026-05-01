@@ -34,3 +34,15 @@ services:
     volumes:
       - ./ai_agencies/visual_forge_studio:/workspace
     command: ["sleep", "infinity"]
+
+  galactic-sales-agency:
+    build:
+      context: ./ai_agencies/galactic_sales_agency
+      dockerfile: dockerfile
+    container_name: galactic_sales_agency
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ai_agencies/galactic_sales_agency:/workspace
+    command: ["sleep", "infinity"]
