@@ -46,3 +46,15 @@ services:
     volumes:
       - ./ai_agencies/galactic_sales_agency:/workspace
     command: ["sleep", "infinity"]
+
+  data-harmonization-system:
+    build:
+      context: ./ai_agencies/data_harmonization_system
+      dockerfile: dockerfile
+    container_name: data_harmonization_system
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ai_agencies/data_harmonization_system:/workspace
+    command: ["sleep", "infinity"]
