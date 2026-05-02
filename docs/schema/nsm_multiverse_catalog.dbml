@@ -1,0 +1,107 @@
+// =============================================================================
+// nsm_multiverse_catalog.dbml — NSM：多元宇宙 × 商品目录核心域（universe / weapon / CAS / GSA）
+// 对齐 docs/MASTER_SPEC.md（公理 III / 第 1.3–1.4 节）
+// 工具：dbdiagram.io / DBML
+// =============================================================================
+//
+// 【为何把「客观设定」与「营销文案」拆开】
+// - PRD：CAS 产出客观真值，GSA 产出导购话术；二者迭代节奏、审核人与合规边界不同。
+// - 合并在单表也可运行，但会导致列语义混杂、部分更新易覆盖另一流水线字段。
+// - 推荐：weapons = 目录主实体 + 计价真源；weapon_armament_spec = CAS；weapon_merchandising = GSA。
+// - 若坚持单表：可将下列副表列扁平合并进 weapons，并以命名前缀区分 spec_* / merch_*。
+//
+// 【目录过滤（校准宇宙）】
+// - MVP：仅 native_universe_id，目录 WHERE native_universe_id = :calibrated_universe_id。
+// - 若未来需「在宇宙 B 上架原生宇宙 A 的武器」等规则，再引入 weapon_listing_eligibility 等多对多。
+// =============================================================================
+
+TableGroup multiverse {
+  universes
+  weapons
+  weapon_armament_spec
+  weapon_merchandising
+}
+
+Table universes {
+  id uuid [pk, note: '主键']
+  code varchar(64) [unique, not null, note: '稳定 slug，用于 API / WHERE']
+  name varchar(255) [not null, note: '宇宙展示名']
+  summary text [note: '短摘要；长篇设定稿可走外链或后续 lore 表']
+  sort_order int [default: 0]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Note: '''
+    平行宇宙维度；与「校准宇宙」筛选对应的持久化标识为本表的 id（见 weapons.native_universe_id）。
+  '''
+}
+
+Table weapons {
+  id uuid [pk]
+  sku_code varchar(64) [unique, not null, note: 'SKU / 库存维度']
+  native_universe_id uuid [not null, ref: > universes.id, note: '原生宇宙：公理 III 实物锚定']
+
+  list_price_qc bigint [not null, note: '正式标价（QC，整数最小货币单位）；PRD 唯一结算单位']
+
+  is_active boolean [not null, default: true, note: '下架则目录不可见']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (native_universe_id) [name: 'idx_weapons_native_universe']
+    (is_active, native_universe_id) [name: 'idx_weapons_catalog_filter']
+  }
+
+  Note: '''
+    商品主实体：目录行、计价真源、与原生宇宙绑定。
+    客观叙事块见 weapon_armament_spec；导购块见 weapon_merchandising。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// CAS：客观设定（第 1.3 节）。不含 Prompt / 画幅 / 美术指令。
+// -----------------------------------------------------------------------------
+Table weapon_armament_spec {
+  weapon_id uuid [pk, ref: - weapons.id, note: '与 weapons 1:1']
+
+  engineering_name varchar(255) [note: '工程 / 研发侧名称，可与导购商品名不同']
+  physical_dimensions text [note: '尺寸与尺度描述']
+  mass_estimate text [note: '质量量级']
+  core_materials text [note: '核心材质']
+  energy_source text [note: '能量源']
+  operation_principle text [note: '运作原理']
+  lethality_mechanism text [note: '杀伤机制']
+  defects_and_risks text [note: '固有缺陷与使用风险']
+  design_constraints text [note: '设计合理性 / 约束说明（对应 PRD）']
+
+  updated_at timestamptz [not null]
+
+  Note: '''
+    武器客观文案真值；验收通过后与目录同时发布。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// GSA：营销文案（第 1.4 节）。suggested_price_qc 仅为策划参考，不得覆盖 list_price_qc。
+// -----------------------------------------------------------------------------
+Table weapon_merchandising {
+  weapon_id uuid [pk, ref: - weapons.id, note: '与 weapons 1:1']
+
+  product_title varchar(255) [note: '商业花名 / 导购标题']
+  short_description varchar(512) [note: '销售短评']
+  key_features jsonb [note: '核心卖点；建议存 JSON 字符串数组，如 ["卖点1","卖点2","卖点3"]']
+
+  promo_copy text [note: '促销与活动向补充文案：限时、折扣、套装、券口径等；与 short_description（常设导购短评）区分，可空']
+
+  suggested_price_qc bigint [note: 'GSA 建议价（策划参考，非正式售价）']
+  locale varchar(16) [default: 'zh-CN']
+
+  updated_at timestamptz [not null]
+
+  Note: '''
+    导购与转化层；允许风格化，但与 native_universe / 物理可行性验收需在应用层核对。
+  '''
+}
+
+// 表间关系全部由列内 ref: 声明（勿再写重复 Ref:，否则 dbdiagram 报 References with same endpoints exist）
