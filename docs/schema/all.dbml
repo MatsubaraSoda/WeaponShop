@@ -1,0 +1,266 @@
+// =============================================================================
+// all.dbml — NSM 合并 ER（第二级规范 · 持久化真源）
+//
+// 【文档层级】第一级 PRD：docs/MASTER_SPEC.md。第二级库表快照：**本文件**（迁移 / ER / 实现模型对齐目标）。
+// 域拆分文件 nsm_*.dbml 为脚手架 / 起草导读，权威低于本文件；冲突时以 MASTER_SPEC + 本文件为准并回溯修订域文件。
+//
+// 【Supabase / PostgreSQL】**`auth`**：Supabase Auth 托管；**`public`**：NSM 业务。
+// **协议归属**：`wormhole_protocols` / `black_hole_protocols` 使用 **`wallet_id` → `public.wallets.id`**（不直接 FK `auth.users`）；
+// `public` 仅通过 **`wallets.id` ↔ `auth.users.id`** 与鉴权衔接（MASTER_SPEC §2）。
+//
+// 【合并来源】Supabase Auth（示意）+ nsm_universe_weapons · nsm_wormhole · nsm_black_hole · nsm_transaction（脚手架）
+// 【合并规则】表顺序满足 FK；跨域外键显式 ref，便于 dbdiagram.io 出图。
+// 工具：dbdiagram.io / DBML
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 域 0：Supabase Auth — auth.users（托管；NSM 不在仓库迁移中重复建表，仅作 ER 锚点）
+// -----------------------------------------------------------------------------
+TableGroup auth {
+  auth.users
+}
+
+Table auth.users {
+  id uuid [pk, note: '鉴权主体 UUID；JWT sub / auth.uid()；与 public.wallets.id 严格 1:1']
+
+  email varchar [note: '登录邮箱；Supabase 字段名与可空性以实例为准']
+  created_at timestamptz [note: '账户创建时间']
+
+  Note: '''
+    Supabase Auth 系统表（schema auth）。NSM 业务侧仅以 public.wallets.id（= 本表 id）贯通协议 wallet_id 与 RLS。
+    勿在本项目迁移中 DROP/ALTER 核心 Auth 表；扩展用户资料可用 public.profiles 等侧表（若日后引入）。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 域 1：神经钱包 public.wallets（须先于协议表；协议 wallet_id 指向本表）
+// -----------------------------------------------------------------------------
+Table public.wallets {
+  id uuid [pk, ref: - auth.users.id, note: '主键即 auth.users.id（1:1）；禁止另造独立钱包 id；链入/注册写入时必须同 UUID']
+
+  balance_qc bigint [not null, default: 0, note: '量子信用点余额；公理 I 唯一结算单位']
+
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE | FROZEN']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Note: '''
+    身份即钱包（MASTER_SPEC 公理 II / §2.1）：主键 id 与 Supabase 鉴权主体 id **完全一致**，不设 user_id 冗余列。
+    协议表仅挂靠本表 wallet_id；与 auth 的唯一纽带为本行 ↔ auth.users.id。QC 变更由 public.wallet_transactions 驱动。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 域 2：宇宙 × 武器目录（公理 III / §1.3–1.4）
+// -----------------------------------------------------------------------------
+TableGroup universe_weapons {
+  public.universes
+  public.weapons
+  public.weapon_armament_spec
+  public.weapon_merchandising
+}
+
+Table public.universes {
+  id uuid [pk, note: '主键']
+  code varchar(64) [unique, not null, note: '稳定 slug，用于 API / WHERE']
+  name varchar(255) [not null, note: '宇宙展示名']
+  description text [note: '完整客观宇宙设定描述（物理法则、冲突语境等）；与展示名区分']
+  cover_image_url text [note: '首页 Carousel 16:9 配图 URL；见 MASTER_SPEC §3.3']
+
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Note: '''
+    平行宇宙维度；与「校准宇宙」筛选对应的持久化标识为本表的 id（见 weapons.native_universe_id）。
+    description 存完整客观宇宙设定正文；name 为展示短名。列表默认按 code 字符串升序，无 sort_order 列。
+  '''
+}
+
+Table public.weapons {
+  id uuid [pk]
+  sku_code varchar(64) [unique, not null, note: 'SKU / 库存维度']
+  native_universe_id uuid [not null, ref: > public.universes.id, note: '原生宇宙：公理 III 实物锚定']
+
+  list_price_qc bigint [not null, note: '正式标价（QC，整数最小货币单位）；PRD 唯一结算单位']
+
+  is_active boolean [not null, default: true, note: '下架则目录不可见']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (native_universe_id) [name: 'idx_weapons_native_universe']
+    (is_active, native_universe_id) [name: 'idx_weapons_catalog_filter']
+  }
+
+  Note: '''
+    商品主实体：目录行、计价真源、与原生宇宙绑定。
+    客观叙事块见 weapon_armament_spec；导购块见 weapon_merchandising。
+  '''
+}
+
+Table public.weapon_armament_spec {
+  weapon_id uuid [pk, ref: - public.weapons.id, note: '与 weapons 1:1']
+
+  armament_name varchar(255) [not null, note: '客观名称（怎么称呼）；可与 weapon_merchandising.product_title 不同']
+  description text [not null, note: '完整武器客观设定描述（叙事与展示用正文）；五元为分项结构化真值；勿与 §1.4 营销 short_description 混同']
+
+  physical_dimensions text [not null, note: '尺寸 / 尺度（实体公设；细化度量可放 extended_spec）']
+  construction_feedstock text [not null, note: '原料：制成实体所消耗 / 转化的物质来源']
+  usage_dependency text [not null, note: '使用依赖：使用阶段的介质或能源（弹药、工质、电池、药剂；或显式「人力」「无化学消耗」等）']
+  operation_principle text [not null, note: '原理：为何能实现杀伤 / 自卫 / 压制']
+
+  extended_spec jsonb [note: '宇宙特异键；Supabase/Postgres jsonb。例：生化 SKU 的 active_genes；勿与五元语义重复']
+
+  defects_and_risks text [note: '可选：固有缺陷与风险']
+  design_constraints text [note: '可选：设计合理性 / 约束说明']
+
+  updated_at timestamptz [not null]
+
+  Note: '''
+    CAS 客观真值。description 为完整客观叙述；五元为结构化分项；不可通用属性走 extended_spec。
+    实现迁移时 description 与五元列 NOT NULL；defects/design 等可选列 nullable。
+  '''
+}
+
+Table public.weapon_merchandising {
+  weapon_id uuid [pk, ref: - public.weapons.id, note: '与 weapons 1:1']
+
+  product_title varchar(255) [note: '商业花名 / 导购标题']
+  short_description varchar(512) [note: '销售短评']
+  key_features jsonb [note: '核心卖点；建议存 JSON 字符串数组，如 ["卖点1","卖点2","卖点3"]']
+
+  promo_copy text [note: '促销与活动向补充文案：限时、折扣、套装、券口径等；与 short_description（常设导购短评）区分，可空']
+
+  suggested_price_qc bigint [note: 'GSA 建议价（策划参考，非正式售价）']
+
+  updated_at timestamptz [not null]
+
+  Note: '''
+    导购与转化层；允许风格化，但与 native_universe / 物理可行性验收需在应用层核对。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 域 3：虫洞倾泻协议 wormhole_*（公理 IV 出向 · §2.4）
+// -----------------------------------------------------------------------------
+TableGroup wormhole {
+  public.wormhole_protocols
+  public.wormhole_items
+}
+
+Table public.wormhole_protocols {
+  id uuid [pk]
+  wallet_id uuid [not null, ref: > public.wallets.id, note: '归属钱包；扣款主体（同一 UUID 即 auth.uid()）']
+
+  protocol_name varchar(255) [not null, note: '战术代号；同一 wallet_id 下唯一（见 indexes）']
+
+  target_universe_id uuid [not null, ref: > public.universes.id, note: '投送目的地宇宙；须满足公理 III；§3.4 创建表单必填']
+  coord_x float [not null, default: 0, note: '§3.4 表单默认 0']
+  coord_y float [not null, default: 0, note: '§3.4 表单默认 0']
+  coord_z float [not null, default: 0, note: '§3.4 表单默认 0']
+
+  total_cost_qc bigint [not null, default: 0, note: 'DRAFT：服务端按目录价实时汇总或 0（无行）；PENDING/COMPLETED：进入 PENDING 时写入的快照总价（见 MASTER_SPEC §2.4）']
+
+  status varchar(20) [not null, default: 'DRAFT', note: '仅三态：DRAFT | PENDING | COMPLETED（见 MASTER_SPEC）']
+
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (wallet_id, protocol_name) [unique, name: 'uq_wormhole_protocols_wallet_protocol_name']
+  }
+
+  Note: '''
+    虫洞倾泻协议：出向单向倾泻；与 public.wallet_transactions（WORMHOLE_CONSUME）通过协议 id 关联。
+    total_cost_qc：DRAFT 下与行项目 + 当前目录价一致；入 PENDING 时与各行 price_snapshot 一起冻结为快照。
+  '''
+}
+
+Table public.wormhole_items {
+  id uuid [pk]
+  wormhole_protocol_id uuid [not null, ref: > public.wormhole_protocols.id, note: '父协议']
+  weapon_id uuid [not null, ref: > public.weapons.id, note: 'FK weapons.id']
+
+  price_snapshot_qc bigint [note: 'DRAFT：NULL；进入 PENDING 时写入 lock 价（通常等于当时 weapons.list_price_qc）']
+
+  quantity int [not null, default: 1]
+  created_at timestamptz [not null]
+
+  indexes {
+    (wormhole_protocol_id) [name: 'idx_wormhole_items_protocol']
+    (weapon_id) [name: 'idx_wormhole_items_weapon']
+    (wormhole_protocol_id, weapon_id) [unique, name: 'uq_wormhole_items_protocol_weapon']
+  }
+
+  Note: '''
+    同一协议内每种武器至多一行；总价按 §2.4：DRAFT 用目录价 × quantity 求和；PENDING 后用 price_snapshot_qc × quantity。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 域 4：黑洞虹吸协议 black_hole_*（公理 IV 入向 · §2.3）
+// -----------------------------------------------------------------------------
+TableGroup black_hole {
+  public.black_hole_protocols
+}
+
+Table public.black_hole_protocols {
+  id uuid [pk]
+  wallet_id uuid [not null, ref: > public.wallets.id, note: '归属钱包；入账主体（同一 UUID 即 auth.uid()）']
+
+  protocol_name varchar(255) [not null, note: '战术代号；同一 wallet_id 下唯一（见 indexes）；§3.5 创建表单必填']
+
+  target_universe_id uuid [not null, ref: > public.universes.id, note: '物质所在宇宙']
+  coord_x float [not null, default: 0]
+  coord_y float [not null, default: 0]
+  coord_z float [not null, default: 0]
+
+  credited_amount_qc bigint [note: '仅 status=COMPLETED 时写入；与 public.wallet_transactions.amount_qc（BLACK_HOLE_INTAKE）一致；MVP 见 MASTER_SPEC §2.3']
+
+  status varchar(20) [not null, default: 'DRAFT', note: '仅三态：DRAFT | PENDING | COMPLETED（见 MASTER_SPEC）']
+
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null, note: '入账完成时将 status 置 COMPLETED 并刷新本列']
+
+  indexes {
+    (wallet_id, protocol_name) [unique, name: 'uq_black_hole_protocols_wallet_protocol_name']
+  }
+
+  Note: '''
+    黑洞虹吸协议：终端提交战术代号、宇宙与坐标；入账 QC 由 NSM 侧裁定写入 credited_amount_qc（§2.3）。
+    MVP 无协议下行项目表；与 public.wallet_transactions（BLACK_HOLE_INTAKE）通过协议 id 关联。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 域 5：账本流水 public.wallet_transactions（依赖 wallets 与协议表）
+// -----------------------------------------------------------------------------
+TableGroup nsm_transaction {
+  public.wallets
+  public.wallet_transactions
+}
+
+Table public.wallet_transactions {
+  id uuid [pk]
+  wallet_id uuid [not null, ref: > public.wallets.id, note: '账本归属；等于 auth.uid()']
+
+  type varchar(32) [not null, note: '仅两种：BLACK_HOLE_INTAKE（黑洞协议入账）| WORMHOLE_CONSUME（虫洞协议扣款）']
+  amount_qc bigint [not null, note: '变动数额；正值为入账，负值为支出']
+
+  related_black_hole_protocol_id uuid [ref: > public.black_hole_protocols.id, note: '黑洞协议；与 type 一致；与虫洞互斥']
+  related_wormhole_protocol_id uuid [ref: > public.wormhole_protocols.id, note: '虫洞协议；与 type 一致；与黑洞互斥']
+
+  audit_log text [note: '系统自动生成的记账凭证摘要']
+  created_at timestamptz [not null]
+
+  indexes {
+    (wallet_id)
+    (related_black_hole_protocol_id)
+    (related_wormhole_protocol_id)
+  }
+
+  Note: '''
+    不可变账本；黑洞协议与虫洞协议至多关联其一（业务 CHECK：与 type 一致；勿串线）。
+  '''
+}

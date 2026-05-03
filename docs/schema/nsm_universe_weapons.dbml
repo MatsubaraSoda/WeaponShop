@@ -1,5 +1,9 @@
 // =============================================================================
-// nsm_multiverse_catalog.dbml — NSM：多元宇宙 × 商品目录核心域（universe / weapon / CAS / GSA）
+// nsm_universe_weapons.dbml — NSM：宇宙 × 武器目录核心域（universe / weapon / CAS / GSA）
+//
+// 【层级】脚手架 / 分域导读：起草第一级（MASTER_SPEC）、第二级（all.dbml）时使用；规范性真源为
+//   docs/MASTER_SPEC.md + docs/schema/all.dbml。与本文件冲突时以上述为准并回溯修订本文件。
+//
 // 对齐 docs/MASTER_SPEC.md（公理 III / 第 1.3–1.4 节）
 // 工具：dbdiagram.io / DBML
 // =============================================================================
@@ -7,15 +11,19 @@
 // 【为何把「客观设定」与「营销文案」拆开】
 // - PRD：CAS 产出客观真值，GSA 产出导购话术；二者迭代节奏、审核人与合规边界不同。
 // - 合并在单表也可运行，但会导致列语义混杂、部分更新易覆盖另一流水线字段。
-// - 推荐：weapons = 目录主实体 + 计价真源；weapon_armament_spec = CAS；weapon_merchandising = GSA。
+// - 推荐：weapons = 目录主实体 + 计价真源；weapon_armament_spec = CAS（description + 五元 + extended_spec jsonb）；weapon_merchandising = GSA。
 // - 若坚持单表：可将下列副表列扁平合并进 weapons，并以命名前缀区分 spec_* / merch_*。
 //
 // 【目录过滤（校准宇宙）】
 // - MVP：仅 native_universe_id，目录 WHERE native_universe_id = :calibrated_universe_id。
+// - 例外：MASTER_SPEC §3.3「欢迎」Carousel 项 — 全宇宙武器，不限定 native_universe_id。
 // - 若未来需「在宇宙 B 上架原生宇宙 A 的武器」等规则，再引入 weapon_listing_eligibility 等多对多。
+//
+// 【宇宙列表排序】
+// - universes 无 sort_order；列举宇宙默认 ORDER BY code ASC（字符串序）。
 // =============================================================================
 
-TableGroup multiverse {
+TableGroup universe_weapons {
   universes
   weapons
   weapon_armament_spec
@@ -26,14 +34,16 @@ Table universes {
   id uuid [pk, note: '主键']
   code varchar(64) [unique, not null, note: '稳定 slug，用于 API / WHERE']
   name varchar(255) [not null, note: '宇宙展示名']
-  summary text [note: '短摘要；长篇设定稿可走外链或后续 lore 表']
-  sort_order int [default: 0]
+  description text [note: '完整客观宇宙设定描述（物理法则、冲突语境等）；与展示名区分']
+  cover_image_url text [note: '首页 Carousel 16:9 配图 URL；见 MASTER_SPEC §3.3']
+
   is_active boolean [not null, default: true]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
   Note: '''
     平行宇宙维度；与「校准宇宙」筛选对应的持久化标识为本表的 id（见 weapons.native_universe_id）。
+    description 存完整客观宇宙设定正文；name 为展示短名。列表默认按 code 字符串升序，无 sort_order 列。
   '''
 }
 
@@ -60,25 +70,29 @@ Table weapons {
 }
 
 // -----------------------------------------------------------------------------
-// CAS：客观设定（第 1.3 节）。不含 Prompt / 画幅 / 美术指令。
+// CAS：客观设定（MASTER_SPEC §1.3）。description（完整客观叙述）+ 五元结构化槽 + extended_spec jsonb；不含 Prompt / 画幅 / 美术指令。
 // -----------------------------------------------------------------------------
 Table weapon_armament_spec {
   weapon_id uuid [pk, ref: - weapons.id, note: '与 weapons 1:1']
 
-  engineering_name varchar(255) [note: '工程 / 研发侧名称，可与导购商品名不同']
-  physical_dimensions text [note: '尺寸与尺度描述']
-  mass_estimate text [note: '质量量级']
-  core_materials text [note: '核心材质']
-  energy_source text [note: '能量源']
-  operation_principle text [note: '运作原理']
-  lethality_mechanism text [note: '杀伤机制']
-  defects_and_risks text [note: '固有缺陷与使用风险']
-  design_constraints text [note: '设计合理性 / 约束说明（对应 PRD）']
+  armament_name varchar(255) [not null, note: '客观名称（怎么称呼）；可与 weapon_merchandising.product_title 不同']
+  description text [not null, note: '完整武器客观设定描述（叙事与展示用正文）；五元为分项结构化真值；勿与 §1.4 营销 short_description 混同']
+
+  physical_dimensions text [not null, note: '尺寸 / 尺度（实体公设；细化度量可放 extended_spec）']
+  construction_feedstock text [not null, note: '原料：制成实体所消耗 / 转化的物质来源']
+  usage_dependency text [not null, note: '使用依赖：使用阶段的介质或能源（弹药、工质、电池、药剂；或显式「人力」「无化学消耗」等）']
+  operation_principle text [not null, note: '原理：为何能实现杀伤 / 自卫 / 压制']
+
+  extended_spec jsonb [note: '宇宙特异键；Supabase/Postgres jsonb。例：生化 SKU 的 active_genes；勿与五元语义重复']
+
+  defects_and_risks text [note: '可选：固有缺陷与风险']
+  design_constraints text [note: '可选：设计合理性 / 约束说明']
 
   updated_at timestamptz [not null]
 
   Note: '''
-    武器客观文案真值；验收通过后与目录同时发布。
+    CAS 客观真值。description 为完整客观叙述；五元为结构化分项；不可通用属性走 extended_spec。
+    实现迁移时 description 与五元列 NOT NULL；defects/design 等可选列 nullable。
   '''
 }
 
@@ -95,7 +109,6 @@ Table weapon_merchandising {
   promo_copy text [note: '促销与活动向补充文案：限时、折扣、套装、券口径等；与 short_description（常设导购短评）区分，可空']
 
   suggested_price_qc bigint [note: 'GSA 建议价（策划参考，非正式售价）']
-  locale varchar(16) [default: 'zh-CN']
 
   updated_at timestamptz [not null]
 
