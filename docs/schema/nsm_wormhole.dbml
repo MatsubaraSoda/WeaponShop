@@ -1,0 +1,78 @@
+// =============================================================================
+// nsm_wormhole.dbml — NSM：虫洞倾泻协议域（wormhole_protocols / wormhole_items）
+//
+// 【层级】脚手架 / 分域导读：起草第一级（MASTER_SPEC）、第二级（all.dbml）时使用；规范性真源为
+//   docs/MASTER_SPEC.md + docs/schema/all.dbml。与本文件冲突时以上述为准并回溯修订本文件。
+//
+// 对齐 docs/MASTER_SPEC.md（公理 III / IV · 虫洞协议 wormhole_*）
+// 与 nsm_universe_weapons：FK universes.id、weapons.id；【不含】钱包、wallet_transactions（见 all.dbml 合并）
+// 工具：dbdiagram.io / DBML
+// =============================================================================
+//
+// 【子表命名】使用 wormhole_items（非 wormhole_protocols_items）：
+// - 与 PRD / §2 全文一致；父表已为 protocols，子表用 items 即可表意，避免「protocols」叠词。
+// - 若偏好「单数行」语义，可选 wormhole_protocol_item（少见于本仓库，以 Master 为准时保持 wormhole_items）。
+// =============================================================================
+
+TableGroup wormhole {
+  wormhole_protocols
+  wormhole_items
+}
+
+// -----------------------------------------------------------------------------
+// 出向：虫洞倾泻协议（简称虫洞协议；公理 IV — Wormhole / wormhole_*）
+// -----------------------------------------------------------------------------
+Table wormhole_protocols {
+  id uuid [pk]
+  user_id uuid [not null, note: '发起特工；与 auth.users.id 同型']
+
+  protocol_name varchar(255) [not null, note: '战术代号；同一 user_id 下唯一（见 indexes）']
+
+  target_universe_id uuid [not null, note: '投送目的地宇宙；须满足公理 III；FK universes.id（见 nsm_universe_weapons）；§3.4 创建表单必填']
+  coord_x float [not null, default: 0, note: '§3.4 表单默认 0']
+  coord_y float [not null, default: 0, note: '§3.4 表单默认 0']
+  coord_z float [not null, default: 0, note: '§3.4 表单默认 0']
+
+  total_cost_qc bigint [not null, default: 0, note: 'DRAFT：服务端按目录价实时汇总或 0（无行）；PENDING/COMPLETED：进入 PENDING 时写入的快照总价（见 MASTER_SPEC §2.4）']
+
+  status varchar(20) [not null, default: 'DRAFT', note: '仅三态：DRAFT | PENDING | COMPLETED（见 MASTER_SPEC）']
+
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (user_id, protocol_name) [unique, name: 'uq_wormhole_protocols_user_protocol_name']
+  }
+
+  Note: '''
+    虫洞倾泻协议：出向单向倾泻；与 nsm_transaction.wallet_transactions（WORMHOLE_CONSUME）通过协议 id 关联，表体不在本文件重复。
+    total_cost_qc：DRAFT 下与行项目 + 当前目录价一致（见行表 Note）；入 PENDING 时与各行 price_snapshot 一起冻结为快照。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 协议行项目：同一协议同一 weapon_id 仅一行，仅改 quantity（见 indexes unique）
+// -----------------------------------------------------------------------------
+Table wormhole_items {
+  id uuid [pk]
+  wormhole_protocol_id uuid [not null, ref: > wormhole_protocols.id, note: '父协议']
+  weapon_id uuid [not null, note: 'FK weapons.id（见 nsm_universe_weapons）']
+
+  price_snapshot_qc bigint [note: 'DRAFT：NULL；进入 PENDING 时写入 lock 价（通常等于当时 weapons.list_price_qc）']
+
+  quantity int [not null, default: 1]
+  created_at timestamptz [not null]
+
+  indexes {
+    (wormhole_protocol_id) [name: 'idx_wormhole_items_protocol']
+    (weapon_id) [name: 'idx_wormhole_items_weapon']
+    (wormhole_protocol_id, weapon_id) [unique, name: 'uq_wormhole_items_protocol_weapon']
+  }
+
+  Note: '''
+    同一协议内每种武器至多一行；总价按 §2.4：DRAFT 用目录价 × quantity 求和；PENDING 后用 price_snapshot_qc × quantity。
+    表名 intentionally 为 wormhole_items，与 PRD 一致。
+  '''
+}
+
+// 表间关系由列内 ref: 声明（勿重复写同端点 Ref:，避免 dbdiagram 报错）

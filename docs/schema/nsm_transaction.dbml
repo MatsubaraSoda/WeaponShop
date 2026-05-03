@@ -1,0 +1,66 @@
+// =============================================================================
+// nsm_transaction.dbml — NSM：资产与账本域（wallets / wallet_transactions）
+//
+// 【层级】脚手架 / 分域导读：起草第一级（MASTER_SPEC）、第二级（all.dbml）时使用；规范性真源为
+//   docs/MASTER_SPEC.md + docs/schema/all.dbml。与本文件冲突时以上述为准并回溯修订本文件。
+//
+// 对齐 docs/MASTER_SPEC.md（公理 II / IV）；完整 FK 与合并 ER 见 docs/schema/all.dbml
+// 工具：dbdiagram.io / DBML
+// =============================================================================
+//
+// 【命名】虫洞倾泻 wormhole_*；黑洞虹吸 black_hole_*。禁止混用管线。
+// 【外部表】universes / weapons 定义见 nsm_universe_weapons.dbml；虫洞/黑洞协议表见各自 dbml。
+// =============================================================================
+
+TableGroup nsm_transaction {
+  wallets
+  wallet_transactions
+}
+
+// -----------------------------------------------------------------------------
+// 1. 资产域：神经钱包（公理 II — 身份即钱包：wallets.id = auth.users.id）
+// -----------------------------------------------------------------------------
+Table wallets {
+  id uuid [pk, note: '等于 auth.users.id；主键即鉴权主体 ID，不设独立 user_id 列']
+
+  balance_qc bigint [not null, default: 0, note: '量子信用点余额；公理 I 唯一结算单位']
+
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE | FROZEN']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Note: '''
+    特工资产快照；id 与鉴权用户同一 UUID。所有 QC 变更应由 wallet_transactions 驱动。
+  '''
+}
+
+Table wallet_transactions {
+  id uuid [pk]
+  wallet_id uuid [not null, ref: > wallets.id]
+
+  type varchar(32) [not null, note: '仅两种：BLACK_HOLE_INTAKE（黑洞协议入账）| WORMHOLE_CONSUME（虫洞协议扣款）']
+  amount_qc bigint [not null, note: '变动数额；正值为入账，负值为支出']
+
+  related_black_hole_protocol_id uuid [ref: > black_hole_protocols.id, note: '关联黑洞虹吸协议（简称黑洞协议，black_hole_*；表定义见 nsm_black_hole.dbml）']
+  related_wormhole_protocol_id uuid [ref: > wormhole_protocols.id, note: '关联虫洞倾泻协议（简称虫洞协议，wormhole_*；表定义见 nsm_wormhole.dbml）']
+
+  audit_log text [note: '系统自动生成的记账凭证摘要']
+  created_at timestamptz [not null]
+
+  indexes {
+    (wallet_id)
+    (related_black_hole_protocol_id)
+    (related_wormhole_protocol_id)
+  }
+
+  Note: '''
+    不可变账本；黑洞协议与虫洞协议至多关联其一（依业务 CHECK：与 type 一致；勿串线）。
+  '''
+}
+
+// -----------------------------------------------------------------------------
+// 2. 黑洞协议：black_hole_protocols 见 docs/schema/nsm_black_hole.dbml
+// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// 3. 虫洞协议：wormhole_protocols / wormhole_items 见 docs/schema/nsm_wormhole.dbml
+// -----------------------------------------------------------------------------

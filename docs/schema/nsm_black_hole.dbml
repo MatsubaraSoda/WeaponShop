@@ -1,0 +1,48 @@
+// =============================================================================
+// nsm_black_hole.dbml — NSM：黑洞虹吸协议域（black_hole_protocols）
+//
+// 【层级】脚手架 / 分域导读：起草第一级（MASTER_SPEC）、第二级（all.dbml）时使用；规范性真源为
+//   docs/MASTER_SPEC.md + docs/schema/all.dbml。与本文件冲突时以上述为准并回溯修订本文件。
+//
+// 对齐 docs/MASTER_SPEC.md（公理 IV · §2.3）；FK universes.id 见 all.dbml
+// 【不含】钱包、wallet_transactions（见 all.dbml 合并）
+// 【MVP】无明细子表（无 black_hole_items）；入账规则见 MASTER_SPEC §2.3
+// 工具：dbdiagram.io / DBML
+// =============================================================================
+
+TableGroup black_hole {
+  black_hole_protocols
+}
+
+// -----------------------------------------------------------------------------
+// 入向：黑洞虹吸协议（简称黑洞协议；公理 IV — Black Hole / black_hole_*）
+// -----------------------------------------------------------------------------
+Table black_hole_protocols {
+  id uuid [pk]
+  user_id uuid [not null, note: '发起特工；与 auth.users.id 同型']
+
+  protocol_name varchar(255) [not null, note: '战术代号；同一 user_id 下唯一（见 indexes）；§3.5 创建表单必填']
+
+  target_universe_id uuid [not null, note: '物质所在宇宙；FK universes.id（见 nsm_universe_weapons）']
+  coord_x float [not null, default: 0]
+  coord_y float [not null, default: 0]
+  coord_z float [not null, default: 0]
+
+  credited_amount_qc bigint [note: '仅 status=COMPLETED 时写入；与 wallet_transactions.amount_qc（BLACK_HOLE_INTAKE）一致；MVP 实现见 MASTER_SPEC §2.3']
+
+  status varchar(20) [not null, default: 'DRAFT', note: '仅三态：DRAFT | PENDING | COMPLETED（见 MASTER_SPEC）']
+
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null, note: '入账完成时将 status 置 COMPLETED 并刷新本列']
+
+  indexes {
+    (user_id, protocol_name) [unique, name: 'uq_black_hole_protocols_user_protocol_name']
+  }
+
+  Note: '''
+    黑洞虹吸协议：终端提交战术代号、宇宙与坐标；入账 QC 由 NSM 侧裁定写入 credited_amount_qc（§2.3）。
+    MVP 无协议下行项目表；与 nsm_transaction.wallet_transactions（BLACK_HOLE_INTAKE）通过协议 id 关联。
+  '''
+}
+
+// 表间关系由列内 ref: 声明（勿重复写同端点 Ref:，避免 dbdiagram 报错）
