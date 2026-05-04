@@ -20,7 +20,7 @@ def _thinking_llm_model() -> str:
 
 @CrewBase
 class Project():
-    """Project crew"""
+    """GSA crew"""
 
     agents: list[BaseAgent]
     tasks: list[Task]
@@ -41,22 +41,52 @@ class Project():
         )
 
     @agent
-    def ecommerce_merchandiser(self) -> Agent:
+    def schema_alignment_strategist(self) -> Agent:
         return Agent(
-            config=self.agents_config['ecommerce_merchandiser'],  # type: ignore[index]
+            config=self.agents_config['schema_alignment_strategist'],  # type: ignore[index]
             verbose=True,
             llm=self.get_thinking_llm(),
         )
 
     @task
-    def basic_merchandising_task(self) -> Task:
+    def schema_alignment_blueprint_task(self) -> Task:
         return Task(
-            config=self.tasks_config['basic_merchandising_task'],  # type: ignore[index]
+            config=self.tasks_config['schema_alignment_blueprint_task'],  # type: ignore[index]
+        )
+
+    @agent
+    def merchandising_copywriter(self) -> Agent:
+        return Agent(
+            config=self.agents_config['merchandising_copywriter'],  # type: ignore[index]
+            verbose=True,
+            llm=self.get_thinking_llm(),
+        )
+
+    @task
+    def merchandising_generation_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['merchandising_generation_task'],  # type: ignore[index]
+            context=[self.schema_alignment_blueprint_task()],
+        )
+
+    @agent
+    def compliance_gate_auditor(self) -> Agent:
+        return Agent(
+            config=self.agents_config['compliance_gate_auditor'],  # type: ignore[index]
+            verbose=True,
+            llm=self.get_thinking_llm(),
+        )
+
+    @task
+    def compliance_gate_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['compliance_gate_task'],  # type: ignore[index]
+            context=[self.merchandising_generation_task()],
         )
 
     @crew
     def crew(self) -> Crew:
-        """Creates the Project crew"""
+        """Creates the GSA crew"""
         return Crew(
             agents=self.agents,
             tasks=self.tasks,

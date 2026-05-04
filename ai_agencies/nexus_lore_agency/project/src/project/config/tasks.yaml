@@ -1,19 +1,35 @@
-research_world_concepts_task:
+extract_themes_task:
   description: >
-    搜集并构思 {target_count} 个不同风格的经典异世界设定（例如：废土、赛博、高魔等）。
-    提取这些作品的宏观物理法则、社会冲突和战争形态。
-    绝对不要提及原作品的名字和具体角色名，只提取抽象的“概念外壳”。
+    从广泛的流行文化作品（影视、文学、游戏）中汲取灵感。
+    提取出 {number} 个截然不同、互不交集的世界观主题。
+    每个主题必须包含：宏观物理质感、主要社会冲突轴、主流能量/军工语境。
+    禁止出现任何现实作品的名称、人名或具体剧情。
   expected_output: >
-    一份包含 {target_count} 种纯粹宏观世界观概念的粗略笔记。
+    一份包含 {number} 个独立概念外壳的列表或简报。
+    每个主题都必须足够抽象且独特，能够直接作为下一个 Agent 创造平行宇宙的独立种子。
   agent: ip_scavenger
 
-adapt_to_arsenal_lore_task:
+create_universe_task:
   description: >
-    根据提取的情报笔记，将这几个概念重写为武器商人视角。
-    每一个世界必须重点描述：主要冲突是什么？能量源是什么？主流武器的形态和特征是什么？
+    接收从上一个任务传递来的单个世界观主题。
+    运用《NLA Writers Bible》的指导，将这个主题扩写为一个完整的平行宇宙。
+    你需要详细描述其标识摘要（含代号）、自然科学图景（物理与法则）、社会科学图景（权力与经济）、
+    人文科学图景（信仰与美学），以及最重要的战争剧场与武器设计禁忌。
+    记住，你每次只处理一个主题，将其塑造成一个充满张力的战争舞台。
   expected_output: >
-    以单一的 `# 跨次元武器黑市：宏观世界设定集` 开头。
-    后续的每一个异世界设定，必须以 `## [异世界名称]` 作为二级标题。
-    必须是完美的 Markdown 格式。
-  agent: arsenal_loremaster
+    一份详尽的单一平行宇宙设定稿件。
+    内容必须涵盖《NLA Writers Bible》模板中要求的各个维度，且没有任何终端业务或数据库实现的描写。
+  agent: universe_architect
+  # 注意：在 main.py 中，你需要通过循环（或者映射）来调用此任务 {number} 次，每次传入一个提取出的主题。
+
+compile_chronicle_task:
+  description: >
+    收集 universe_architect 生成的 {number} 份独立宇宙设定稿件。
+    将它们整合为一份符合《NLA Writers Bible》交付契约的正式报告。
+    确保文件的顶层结构正确：可选的零级标题和导语，随后严格按照每个 `## 〈宇宙展示名〉` 划分章节。
+    审查并清除任何可能残留的技术实现用语、数据库术语或终端界面描述。
+  expected_output: >
+    一个名为 report.md 的合法 Markdown 文件。
+    它完美地组装了 {number} 个宇宙的设定，排版严谨，可直接交付给集成侧进行验收与拆分。
+  agent: lore_compiler
   output_file: report.md

@@ -1,19 +1,83 @@
-basic_merchandising_task:
+schema_alignment_blueprint_task:
   description: >
-    阅读以下来自军工研发部门 (CAS) 的武器客观物理描述与参数：
+    你将收到三份输入：
 
-    {weapon_data}
+    [CAS 客观武器数据]
+    {cas_report}
 
-    针对列表中的每一把武器，进行“数据富化 (Data Enrichment)”，生成用于电商前端展示的基础数据卡片。
-    对于每一把武器，你必须严格输出以下 4 项核心商业信息：
-    
-    1. 商业花名 (Product Title)：抛弃实验室里的工程代号，起一个极具废土或科幻色彩、能让人记住的霸气商品名。
-    2. 销售短评 (Short Description)：概括其核心用途或适用场景，语言要精准勾起特定人群的购买欲（限制在 50 字以内）。
-    3. 市场定价 (Price)：根据其杀伤力、材质稀有度，给出一个符合设定的虚拟货币价格（例如：800 信用点、50,000 星币）。
-    4. 核心卖点 (Key Features)：将枯燥的物理参数（如重量、尺寸、运作原理）提炼翻译为 3 条对买家最有价值的商品特色。
-    
+    [NLA 宇宙语境数据]
+    {nla_report}
+
+    [GSA 内部最高规范]
+    {gsa_bible}
+
+    请输出“字段对齐蓝图”，用于后续文案生产，要求：
+    1) 提取可生产武器清单，并为每个武器定义唯一 sku_code（slug 风格、稳定、可复现）。
+    2) 为每个武器绑定 native_universe_code（与宇宙代号一致）。
+    3) 明确每个输出字段的类型约束：
+       - list_price_qc / suggested_price_qc：正整数
+       - key_features：3 条字符串数组语义
+       - promo_copy：可空，空值用 N/A
+    4) 标记缺失数据与冲突数据（DATA_GAP / LORE_MISSING / SKU_CONFLICT）。
+    5) 明确说明 GSA 仅交付 report.md，不执行入库。
   expected_output: >
-    一份排版极度整洁的 Markdown 格式商品目录。
-    按武器分别列出区块，确保“商业花名”、“销售短评”、“市场定价”和“核心卖点”四个维度清晰可辨，方便后续的数据清洗脚本进行正则提取或 JSON 化。
-  agent: ecommerce_merchandiser
-  output_file: output/report.md
+    一份 Markdown《字段对齐蓝图》，包含：
+    - 字段字典
+    - 武器清单与映射锚点（sku_code, native_universe_code）
+    - 异常标记清单
+    - 生产注意事项（不入库声明）
+  agent: schema_alignment_strategist
+
+merchandising_generation_task:
+  description: >
+    基于上一步《字段对齐蓝图》，结合以下输入生成正式营销报告：
+
+    [CAS 客观武器数据]
+    {cas_report}
+
+    [NLA 宇宙语境数据]
+    {nla_report}
+
+    [GSA 内部最高规范]
+    {gsa_bible}
+
+    必须为每件可处理武器输出以下键（命名必须完全一致）：
+    - sku_code
+    - native_universe_code
+    - armament_name
+    - list_price_qc
+    - product_title
+    - short_description
+    - key_features
+    - promo_copy
+    - suggested_price_qc
+
+    严格约束：
+    1) key_features 必须是 3 项数组语义（JSON 字符串数组格式）。
+    2) list_price_qc 与 suggested_price_qc 必须为正整数，默认相等。
+    3) 不得输出任何“已入库/已写库/已同步数据库”表述。
+    4) 不得编造与 CAS 冲突的硬参数或功能。
+    5) 输出采用固定区块结构：每个武器一个 `## item` 区块。
+  expected_output: >
+    一份 Markdown 草案，每件武器一个 `## item` 区块，字段完整且命名一致，
+    可直接被下游映射脚本解析。
+  agent: merchandising_copywriter
+
+compliance_gate_task:
+  description: >
+    对上一任务草案做最终门禁审校并输出最终 report.md，检查项如下：
+    1) 字段完整性：9 个必需键全部存在。
+    2) 字段类型：*_price_qc 为正整数；key_features 为可解析 JSON 数组语义；promo_copy 空值为 N/A。
+    3) 内容一致性：不与 CAS 客观参数冲突；文风与 NLA 宇宙语境一致。
+    4) 职责边界：保留“GSA 不负责入库”边界，不出现越权陈述。
+    5) 结构一致性：全篇仅使用 `## item` 重复区块输出，不混入无关章节。
+
+    如果发现问题，先在文内修正后再输出最终版本。
+  expected_output: >
+    最终版 Markdown 报告（report.md）：
+    - 每个武器一个 `## item` 区块
+    - 9 个字段键名全部齐全且格式正确
+    - 可被脚本稳定提取
+    - 明确是营销产出而非入库执行
+  agent: compliance_gate_auditor
+  output_file: report.md
